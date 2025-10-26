@@ -1,0 +1,54 @@
+{
+  "name": "@axivo/mcp-obsidian",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server for Obsidian vault management",
+  "keywords": [
+    "documentation",
+    "knowledge-management",
+    "mcp",
+    "model-context-protocol",
+    "notes",
+    "obsidian",
+    "server"
+  ],
+  "license": "BSD-3-Clause",
+  "author": "AXIVO",
+  "files": [
+    "dist/**/*",
+    "LICENSE",
+    "README.md"
+  ],
+  "bin": {
+    "mcp-obsidian": "dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/axivo/mcp-obsidian.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "axios": "^1.12.0",
+    "gray-matter": "^4.0.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": ">=5.0.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "index.js",
+  "bugs": {
+    "url": "https://github.com/axivo/mcp-obsidian/issues"
+  },
+  "homepage": "https://github.com/axivo/mcp-obsidian"
+}

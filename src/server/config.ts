@@ -24,13 +24,13 @@ export interface ObsidianConfig {
  * @interface VaultConfig
  * @property {string} apiKey - API key for local REST API plugin
  * @property {string} apiUrl - API URL for local REST API instance
- * @property {string} description - Human-readable vault description
+ * @property {string} [description] - Optional vault description
  * @property {string} path - Absolute path to vault directory
  */
 export interface VaultConfig {
   apiKey: string;
   apiUrl: string;
-  description: string;
+  description?: string;
   path: string;
 }
 
@@ -112,10 +112,6 @@ export class Config {
       if (typeof vaultConfig.path !== 'string' || vaultConfig.path.trim() === '') {
         return false;
       }
-      if (vaultConfig.description !== undefined &&
-        (typeof vaultConfig.description !== 'string' || vaultConfig.description.trim() === '')) {
-        return false;
-      }
     }
     return true;
   }
@@ -124,17 +120,12 @@ export class Config {
    * Gets complete vault configuration for a specific vault
    * 
    * Retrieves full vault configuration including API key, URL, path,
-   * and description.
+   * and optional description.
    * 
    * @param {string} vaultId - Vault identifier (e.g., 'conversations', 'diary')
-   * @returns {{
-   *   apiKey: string,
-   *   apiUrl: string,
-   *   description: string,
-   *   path: string
-   * } | undefined} Complete vault configuration or undefined if not found
+   * @returns {VaultConfig} Complete vault configuration
    */
-  getVaultConfig(vaultId: string): VaultConfig | undefined {
+  getVaultConfig(vaultId: string): VaultConfig {
     return this.config.vaults[vaultId];
   }
 

@@ -25,26 +25,6 @@ export class McpTool {
   }
 
   /**
-   * Creates MCP tool for listing configured vaults
-   * 
-   * Returns list of all configured vaults with their descriptions,
-   * enabling vault discovery and selection.
-   * 
-   * @returns {Tool} MCP tool definition for vault listing
-   */
-  getListVaults(): Tool {
-    return {
-      name: 'list_vaults',
-      description: 'List all configured Obsidian vaults',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        required: []
-      }
-    };
-  }
-
-  /**
    * Gets all tool definitions
    * 
    * Returns complete array of all available MCP tools for registration
@@ -54,7 +34,27 @@ export class McpTool {
    */
   getTools(): Tool[] {
     return [
-      this.getListVaults()
+      this.getVaults()
     ];
+  }
+
+  /**
+   * Creates MCP tool for getting configured vaults
+   * 
+   * Returns a list of all configured vaults with their descriptions,
+   * enabling vault discovery and selection.
+   * 
+   * @returns {Tool} MCP tool definition for getting configured vaults
+   */
+  getVaults(): Tool {
+    return {
+      name: 'get_vaults',
+      description: 'Get all configured Obsidian vaults',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    };
   }
 }

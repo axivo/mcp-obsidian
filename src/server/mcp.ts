@@ -15,8 +15,12 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { Client, Response } from './client.js';
-import { Config } from './config.js';
+import { Config, VaultConfig } from './config.js';
 import { McpTool } from './tool.js';
+
+interface Vault extends VaultConfig {
+  id: string;
+}
 
 /**
  * Generic tool handler function type
@@ -99,24 +103,26 @@ export class McpServer {
   }
 
   /**
-   * Lists all configured vaults
+   * Gets all configured vaults
    * 
    * Returns vault IDs with descriptions for vault discovery and selection.
    * 
    * @private
    * @returns {Promise<unknown>} Response containing vault list
    */
-  private async listVaults(): Promise<unknown> {
-    const vaults = this.config.getVaults();
-    const vaultList = vaults.map(vaultId => {
-      const config = this.config.getVaultConfig(vaultId);
+  private async getVaults(): Promise<{ vaults: Vault[] }> {
+    const vaultIds = this.config.getVaults();
+    const vaults = vaultIds.map(id => {
+      const config: VaultConfig = this.config.getVaultConfig(id);
       return {
-        id: vaultId,
-        description: config?.description || 'No description',
-        path: config?.path || 'Unknown'
+        apiKey: config.apiKey,
+        apiUrl: config.apiUrl,
+        description: config.description ?? '',
+        id,
+        path: config.path
       };
     });
-    return { vaults: vaultList };
+    return { vaults };
   }
 
   /**
@@ -141,7 +147,7 @@ export class McpServer {
    * @private
    */
   private setupToolHandlers(): void {
-    this.toolHandler.set('list_vaults', this.listVaults.bind(this));
+    this.toolHandler.set('get_vaults', async (args) => this.getVaults());
   }
 
   /**

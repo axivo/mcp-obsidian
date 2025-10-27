@@ -91,6 +91,25 @@ export class Client {
   }
 
   /**
+   * Gets notes from vault folder
+   * 
+   * Lists all note files in the specified folder of a vault using
+   * Obsidian REST API. Returns array of file paths relative to vault root.
+   * 
+   * @param {string} vaultId - Vault identifier from configuration
+   * @param {string} [folder] - Optional folder path within vault (e.g., "daily", "projects/work")
+   * @returns {Promise<{ files: string[] } | Response>} Array of note file paths or error response
+   */
+  async getNotes(vaultId: string, folder?: string): Promise<{ files: string[] } | Response> {
+    const path = folder ? `/vault/${folder}/` : '/vault/';
+    return this.request<{ files: string[] }>({
+      vaultId,
+      method: 'GET',
+      path
+    });
+  }
+
+  /**
    * Creates a standardized MCP response format
    * 
    * Converts responses into the MCP-compliant format

@@ -56,7 +56,7 @@ export class McpTool {
         type: 'object',
         properties: {
           vaultId: { type: 'string', description: 'Vault identifier from configuration' },
-          folder: { type: 'string', description: 'Optional folder path within vault' }
+          folder: { type: 'string', description: 'Optional folder path within vault', default: '' }
         },
         required: ['vaultId']
       }

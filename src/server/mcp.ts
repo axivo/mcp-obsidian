@@ -19,18 +19,6 @@ import { Config, VaultConfig } from './config.js';
 import { McpTool } from './tool.js';
 
 /**
- * Parameters for getting notes from vault folder
- * 
- * @interface GetNotes
- * @property {string} vaultId - Vault identifier
- * @property {string} [folder] - Optional folder path
- */
-interface GetNotes {
-  vaultId: string;
-  folder?: string;
-}
-
-/**
  * Mapping between vault capabilities, tool handlers, and MCP tool definitions
  * 
  * @interface ServerTools
@@ -171,9 +159,8 @@ export class McpServer {
       }
       server.get(capability)!.push(tool);
     }
-    const vaultOperations = server.get('vaultOperations');
-    if (vaultOperations && vaultOperations.length) {
-      toolsMap['vaultOperations'] = { supported: true, tools: vaultOperations };
+    for (const [capability, tools] of server.entries()) {
+      toolsMap[capability] = { supported: true, tools };
     }
     return toolsMap;
   }
@@ -225,11 +212,11 @@ export class McpServer {
     const vaults = vaultIds.map(id => {
       const config: VaultConfig = this.config.getVaultConfig(id);
       return {
-        apiKey: config.apiKey,
-        apiUrl: config.apiUrl,
         description: config.description ?? '',
+        extensions: config.extensions,
         id,
-        path: config.path
+        path: config.path,
+        settings: config.settings
       };
     });
     return { vaults };
@@ -245,11 +232,12 @@ export class McpServer {
    * @returns {ServerTools[]} Array of capability-to-tool-handler mappings
    */
   private setServerTools(): ServerTools[] {
-    return [
-      { capability: 'vaultOperations', handler: this.getNotes.bind(this), tool: this.tool.getNotes() },
-      { capability: 'vaultOperations', handler: this.getServerCapabilities.bind(this), tool: this.tool.getServerCapabilities() },
-      { capability: 'vaultOperations', handler: this.getVaults.bind(this), tool: this.tool.getVaults() }
+    const tools: ServerTools[] = [
+      { capability: 'getNotes', handler: this.getNotes.bind(this), tool: this.tool.getNotes() },
+      { capability: 'getServerCapabilities', handler: this.getServerCapabilities.bind(this), tool: this.tool.getServerCapabilities() },
+      { capability: 'getVaults', handler: this.getVaults.bind(this), tool: this.tool.getVaults() }
     ];
+    return tools;
   }
 
   /**

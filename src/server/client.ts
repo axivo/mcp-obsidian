@@ -7,9 +7,12 @@
  */
 
 import axios from 'axios';
+import fg from 'fast-glob';
 import { readFileSync } from 'node:fs';
+import https from 'node:https';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import sslChecker from 'ssl-checker';
 import { Config } from './config.js';
 
 /**
@@ -77,15 +80,32 @@ export class Client {
     if (!vaultConfig) {
       return this.response(`Vault '${params.vaultId}' not found in configuration.`);
     }
+    const pluginConfig = this.config.getRestApiConfig(params.vaultId);
+    if (!pluginConfig) {
+      return this.response(`Vault '${params.vaultId}' REST API not configured.`);
+    }
+    const useHttps = pluginConfig.enableSecureServer;
+    const port = useHttps ? pluginConfig.port : pluginConfig.insecurePort;
+    const protocol = useHttps ? 'https' : 'http';
+    const host = pluginConfig.bindingHost ?? '127.0.0.1';
+    const baseUrl = `${protocol}://${host}:${port}`;
+    let httpsAgent = undefined;
+    if (useHttps) {
+      const sslInfo = await sslChecker(host, { method: 'HEAD', port });
+      if (!sslInfo.valid) {
+        httpsAgent = new https.Agent({ rejectUnauthorized: false });
+      }
+    }
     const response = await axios({
       method: params.method,
-      url: `${vaultConfig.apiUrl}${params.path}`,
+      url: `${baseUrl}${params.path}`,
       headers: {
-        'Authorization': `Bearer ${vaultConfig.apiKey}`,
+        'Authorization': `Bearer ${pluginConfig.apiKey}`,
         'Content-Type': 'application/json',
       },
       data: params.data,
-      timeout: this.timeout
+      timeout: this.timeout,
+      httpsAgent
     });
     return response.data;
   }
@@ -101,12 +121,20 @@ export class Client {
    * @returns {Promise<{ files: string[] } | Response>} Array of note file paths or error response
    */
   async getNotes(vaultId: string, folder?: string): Promise<{ files: string[] } | Response> {
-    const path = folder ? `/vault/${folder}/` : '/vault/';
-    return this.request<{ files: string[] }>({
-      vaultId,
-      method: 'GET',
-      path
+    const vaultConfig = this.config.getVaultConfig(vaultId);
+    if (!vaultConfig) {
+      return this.response(`Vault '${vaultId}' not found in configuration.`);
+    }
+    const pattern = vaultConfig.extensions.length === 1
+      ? `**/*${vaultConfig.extensions[0]}`
+      : `**/*{${vaultConfig.extensions.join(',')}}`;
+    const searchPath = folder ? join(vaultConfig.path, folder) : vaultConfig.path;
+    const files = await fg(pattern, {
+      cwd: searchPath,
+      absolute: true,
+      onlyFiles: true
     });
+    return { files };
   }
 
   /**

@@ -6,7 +6,8 @@
  * @license BSD-3-Clause
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Global Obsidian configuration structure
@@ -22,16 +23,36 @@ export interface ObsidianConfig {
  * Configuration for a single Obsidian vault
  * 
  * @interface VaultConfig
- * @property {string} apiKey - API key for local REST API plugin
- * @property {string} apiUrl - API URL for local REST API instance
  * @property {string} [description] - Optional vault description
+ * @property {string[]} extensions - File extensions for notes
  * @property {string} path - Absolute path to vault directory
+ * @property {Record<string, unknown>} [settings] - Optional Obsidian vault settings to sync
  */
 export interface VaultConfig {
-  apiKey: string;
-  apiUrl: string;
   description?: string;
+  extensions: string[];
   path: string;
+  settings?: Record<string, unknown>;
+}
+
+/**
+ * Configuration from Obsidian Local REST API plugin
+ * 
+ * @interface PluginConfig
+ * @property {string} apiKey - API key for authentication
+ * @property {string} [bindingHost] - Optional binding host address
+ * @property {boolean} enableInsecureServer - Whether HTTP server is enabled
+ * @property {boolean} enableSecureServer - Whether HTTPS server is enabled
+ * @property {number} insecurePort - HTTP server port
+ * @property {number} port - HTTPS server port
+ */
+export interface PluginConfig {
+  apiKey: string;
+  bindingHost?: string;
+  enableInsecureServer: boolean;
+  enableSecureServer: boolean;
+  insecurePort: number;
+  port: number;
 }
 
 /**
@@ -44,6 +65,7 @@ export interface VaultConfig {
  */
 export class Config {
   private config: ObsidianConfig;
+  private readonly restApiDataPath = '.obsidian/plugins/obsidian-local-rest-api/data.json';
 
   /**
    * Creates a new Config instance and loads vault configuration
@@ -103,17 +125,46 @@ export class Config {
       if (!vaultConfig || typeof vaultConfig !== 'object') {
         return false;
       }
-      if (typeof vaultConfig.apiKey !== 'string' || vaultConfig.apiKey.trim() === '') {
-        return false;
-      }
-      if (typeof vaultConfig.apiUrl !== 'string' || vaultConfig.apiUrl.trim() === '') {
+      if (!Array.isArray(vaultConfig.extensions) || vaultConfig.extensions.length === 0) {
         return false;
       }
       if (typeof vaultConfig.path !== 'string' || vaultConfig.path.trim() === '') {
         return false;
       }
+      if (vaultConfig.settings !== undefined && typeof vaultConfig.settings !== 'object') {
+        return false;
+      }
     }
     return true;
+  }
+
+  /**
+   * Gets Obsidian Local REST API plugin configuration
+   * 
+   * Reads configuration from the vault's plugin data.json file,
+   * extracting API credentials and server settings.
+   * 
+   * @param {string} vaultId - Vault identifier (e.g., 'conversations', 'diary')
+   * @returns {PluginConfig | null} Plugin configuration or null if plugin not configured
+   */
+  getRestApiConfig(vaultId: string): PluginConfig | null {
+    const vaultConfig = this.getVaultConfig(vaultId);
+    if (!vaultConfig) {
+      return null;
+    }
+    const pluginDataPath = join(vaultConfig.path, this.restApiDataPath);
+    if (!existsSync(pluginDataPath)) {
+      return null;
+    }
+    const pluginData = JSON.parse(readFileSync(pluginDataPath, 'utf8'));
+    return {
+      apiKey: pluginData.apiKey,
+      bindingHost: pluginData.bindingHost,
+      enableInsecureServer: pluginData.enableInsecureServer ?? false,
+      enableSecureServer: pluginData.enableSecureServer ?? true,
+      insecurePort: pluginData.insecurePort,
+      port: pluginData.port
+    };
   }
 
   /**

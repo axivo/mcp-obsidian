@@ -14,6 +14,7 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { Client, Response } from './client.js';
 import { Config, VaultConfig } from './config.js';
 import { McpTool } from './tool.js';
@@ -56,6 +57,23 @@ interface ToolCapabilities {
   tool: Tool;
 }
 
+/**
+ * Vault identifier parameter
+ * 
+ * @interface VaultId
+ * @property {string} vault_id - Vault identifier from configuration
+ */
+interface VaultId {
+  vault_id: string;
+}
+
+/**
+ * Get server capabilities request parameters
+ * 
+ * @interface GetServerCapabilities
+ */
+interface GetServerCapabilities { }
+
 interface Vault extends VaultConfig {
   id: string;
 }
@@ -93,7 +111,7 @@ export class McpServer {
    * @param {string} configPath - Absolute path to obsidian.json configuration file
    */
   constructor(configPath: string) {
-    this.config = new Config(configPath);
+    this.config = Config.validate(configPath);
     this.client = new Client(configPath);
     this.server = new Server(
       { name: 'obsidian', version: this.client.version() },
@@ -143,12 +161,12 @@ export class McpServer {
   /**
    * Generates capability-based tools map for MCP tool exposure
    * 
-   * Maps vault server capabilities to available MCP tools, creating a dynamic
-   * tool registry based on what vault operations are supported.
+   * Maps all available MCP tools with their capabilities, creating a complete
+   * tool registry for vault operations.
    * 
    * @private
    * @param {ToolCapabilities[]} toolCapabilities - Available tool-to-capability mappings
-   * @returns {Record<string, SupportedTools>} Capability-keyed mapping of supported tools
+   * @returns {Record<string, SupportedTools>} Capability-keyed mapping of all supported tools
    */
   private generateToolsMap(toolCapabilities: ToolCapabilities[]): Record<string, SupportedTools> {
     const server = new Map<string, Tool[]>();
@@ -182,20 +200,20 @@ export class McpServer {
   /**
    * Gets MCP server capabilities and available tool mappings
    * 
-   * Retrieves configured vaults and maps them to available MCP tools,
-   * providing comprehensive capability inspection and tool discovery.
+   * Discovery tool that returns all configured vaults and available MCP tools.
+   * Serves as the entry point for understanding what the MCP server can do.
    * 
    * @private
+   * @param {GetServerCapabilities} args - Empty parameters object
    * @param {ToolCapabilities[]} [toolCapabilities] - Optional pre-computed tool capabilities
-   * @returns {Promise<{vaults: Vault[], tools: Record<string, SupportedTools>}>} Vaults and tools mapping
+   * @returns {Promise<unknown>} Complete server capabilities with tools and vaults
    */
-  private async getServerCapabilities(args?: { toolCapabilities?: ToolCapabilities[] }): Promise<unknown> {
-    const { vaults } = await this.getVaults();
-    let toolCapabilities = args?.toolCapabilities;
+  private async getServerCapabilities(args: GetServerCapabilities, toolCapabilities?: ToolCapabilities[]): Promise<unknown> {
     if (!toolCapabilities) {
       toolCapabilities = this.setServerTools().map(({ tool, capability }) => ({ tool, capability }));
     }
     const tools = this.generateToolsMap(toolCapabilities);
+    const { vaults } = await this.getVaults();
     return { tools, vaults };
   }
 
@@ -279,6 +297,39 @@ export class McpServer {
       };
       this.toolHandler.set(tool.name, wrappedHandler);
     }
+  }
+
+  /**
+   * Validates required arguments for tool handler methods using Zod schemas
+   * 
+   * Performs runtime validation of tool arguments against required field specifications,
+   * ensuring type safety and proper error handling for missing parameters.
+   * 
+   * @private
+   * @param {unknown} args - Tool arguments object to validate
+   * @param {string[]} fields - Array of required field names for validation
+   * @returns {string | null} Error message if validation fails, null if all requirements met
+   */
+  private validate(args: unknown, fields: string[]): string | null {
+    const type: Record<string, z.ZodType> = {};
+    for (const field of fields) {
+      if (field === 'query') {
+        type[field] = z.string();
+      } else {
+        type[field] = z.union([
+          z.number(),
+          z.record(z.string(), z.unknown()).refine((obj) => Object.keys(obj).length > 0),
+          z.string().min(1)
+        ]);
+      }
+    }
+    const schema = z.object(type);
+    const result = schema.safeParse(args);
+    if (!result.success) {
+      const missing = result.error.issues.map(issue => issue.path[0]);
+      return `Missing required arguments: ${missing.join(', ')}`;
+    }
+    return null;
   }
 
   /**

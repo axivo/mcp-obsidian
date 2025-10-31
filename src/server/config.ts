@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { z } from 'zod';
 
 /**
  * Global Obsidian configuration structure
@@ -58,84 +59,68 @@ export interface PluginConfig {
 /**
  * Configuration loader and validator for Obsidian vaults
  * 
- * Manages loading, parsing, and validation of the obsidian.json configuration file
- * that defines all available Obsidian vaults and their connection parameters.
+ * Handles parsing, validation, and access to Obsidian vault configuration files
+ * with comprehensive error handling, type safety, and Zod schema validation.
  * 
+ * @export
  * @class Config
  */
 export class Config {
   private config: ObsidianConfig;
   private readonly restApiDataPath = '.obsidian/plugins/obsidian-local-rest-api/data.json';
+  private static readonly VaultConfigSchema = z.object({
+    description: z.string().optional(),
+    extensions: z.array(z.string()).min(1),
+    path: z.string().min(1),
+    settings: z.record(z.string(), z.unknown()).optional()
+  });
+  private static readonly ConfigSchema = z.object({
+    vaults: z.record(z.string(), Config.VaultConfigSchema).refine(
+      (vaults) => Object.keys(vaults).length > 0,
+      { message: 'At least one vault configuration is required.' }
+    )
+  });
 
   /**
-   * Creates a new Config instance and loads vault configuration
+   * Creates a new Config instance with validated configuration
    * 
-   * @param {string} configPath - Absolute path to obsidian.json configuration file
+   * Private constructor ensures all instances are created through the static
+   * factory method, guaranteeing proper validation before instantiation.
+   * 
+   * @private
+   * @param {ObsidianConfig} config - Pre-validated configuration object
    */
-  constructor(configPath: string) {
-    this.config = this.loadConfig(configPath);
+  private constructor(config: ObsidianConfig) {
+    this.config = config;
   }
 
   /**
-   * Loads and parses the Obsidian configuration file with error handling
+   * Validates configuration from file
    * 
-   * Reads JSON configuration file, validates structure and content,
-   * and returns safe configuration object with fallback on any errors.
+   * Reads JSON configuration file, validates structure and content using Zod schema,
+   * and returns validated Config instance. Provides detailed error messages for
+   * validation failures.
    * 
-   * @private
-   * @param {string} configPath - Path to configuration file
-   * @returns {ObsidianConfig} Parsed and validated configuration or empty fallback
+   * @static
+   * @param {string} configPath - Absolute path to configuration JSON file
+   * @returns {Config} Validated Config instance
+   * @throws {Error} If file cannot be read or configuration is invalid
    */
-  private loadConfig(configPath: string): ObsidianConfig {
-    const emptyConfig: ObsidianConfig = { vaults: {} };
+  static validate(configPath: string): Config {
     try {
-      const configContent = readFileSync(configPath, 'utf-8');
-      const config = JSON.parse(configContent) as ObsidianConfig;
-      if (!this.validate(config)) {
-        return emptyConfig;
-      }
-      return config;
+      const configData = readFileSync(configPath, 'utf-8');
+      const parsedData = JSON.parse(configData);
+      const validatedConfig = Config.ConfigSchema.parse(parsedData);
+      return new Config(validatedConfig);
     } catch (error) {
-      return emptyConfig;
-    }
-  }
-
-  /**
-   * Validates comprehensive configuration structure and content rules
-   * 
-   * Performs validation of configuration including vault definitions,
-   * API keys, URLs, and paths to ensure runtime safety and proper
-   * Obsidian REST API initialization.
-   * 
-   * @private
-   * @param {ObsidianConfig} config - Configuration object to validate against schema
-   * @returns {boolean} True if configuration meets all validation requirements, false otherwise
-   */
-  private validate(config: ObsidianConfig): boolean {
-    if (!config || typeof config !== 'object') {
-      return false;
-    }
-    if (!config.vaults || typeof config.vaults !== 'object') {
-      return false;
-    }
-    if (Object.keys(config.vaults).length === 0) {
-      return false;
-    }
-    for (const vaultConfig of Object.values(config.vaults)) {
-      if (!vaultConfig || typeof vaultConfig !== 'object') {
-        return false;
+      if (error instanceof z.ZodError) {
+        const errors = error.issues.map((e: z.core.$ZodIssue) =>
+          `${e.path.join('.')}: ${e.message}`
+        ).join(', ');
+        throw new Error(`Failed to load '${configPath}' configuration file: ${errors}`);
       }
-      if (!Array.isArray(vaultConfig.extensions) || vaultConfig.extensions.length === 0) {
-        return false;
-      }
-      if (typeof vaultConfig.path !== 'string' || vaultConfig.path.trim() === '') {
-        return false;
-      }
-      if (vaultConfig.settings !== undefined && typeof vaultConfig.settings !== 'object') {
-        return false;
-      }
+      throw new Error(`Failed to load '${configPath}' configuration file: ${error}`);
     }
-    return true;
   }
 
   /**

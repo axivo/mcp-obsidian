@@ -61,7 +61,7 @@ export class Client {
    * @param {string} configPath - Path to the Obsidian configuration file
    */
   constructor(configPath: string) {
-    this.config = new Config(configPath);
+    this.config = Config.validate(configPath);
   }
 
   /**
